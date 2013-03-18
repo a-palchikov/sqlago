@@ -5,162 +5,165 @@ package sqlany
 // dll bindings
 
 import (
+	"fmt"
 	"syscall"
 	"unsafe"
-    "fmt"
 )
 
 const (
-    API_VERSION_1 = 1
-    API_VERSION_2 = 2
-    SACAPI_ERROR_SIZE = 256
+	API_VERSION_1     = 1
+	API_VERSION_2     = 2
+	SACAPI_ERROR_SIZE = 256
 
-    libdbcapi_dll = "dbcapi.dll"
+	libdbcapi_dll = "dbcapi.dll"
 )
 
 type dataType int
+
 const (
-    A_INVALID_TYPE dataType = iota  // invalid data type
-    A_BINARY        // Binary data: treated as is (no conversions performed)
-    A_STRING        // String data: character set conversion performed
-    A_DOUBLE
-    A_VAL64         // 64bit ints
-    A_UVAL64
-    A_VAL32         // 32bit ints
-    A_UVAL32
-    A_VAL16         // words
-    A_UVAL16
-    A_VAL8          // bytes
-    A_UVAL8
+	A_INVALID_TYPE dataType = iota // invalid data type
+	A_BINARY                       // Binary data: treated as is (no conversions performed)
+	A_STRING                       // String data: character set conversion performed
+	A_DOUBLE
+	A_VAL64 // 64bit ints
+	A_UVAL64
+	A_VAL32 // 32bit ints
+	A_UVAL32
+	A_VAL16 // words
+	A_UVAL16
+	A_VAL8 // bytes
+	A_UVAL8
 )
 
 type nativeType int
+
 const (
-    DT_NOTYPE       	= 0
-    DT_DATE         	= 384
-    DT_TIME         	= 388
-    DT_TIMESTAMP    	= 392
-    DT_VARCHAR      	= 448
-    DT_FIXCHAR      	= 452
-    DT_LONGVARCHAR  	= 456
-    DT_STRING       	= 460
-    DT_DOUBLE       	= 480
-    DT_FLOAT        	= 482
-    DT_DECIMAL      	= 484
-    DT_INT          	= 496
-    DT_SMALLINT     	= 500
-    DT_BINARY       	= 524
-    DT_LONGBINARY   	= 528
-    DT_TINYINT      	= 604
-    DT_BIGINT       	= 608
-    DT_UNSINT       	= 612
-    DT_UNSSMALLINT  	= 616
-    DT_UNSBIGINT    	= 620
-    DT_BIT          	= 624
-    DT_LONGNVARCHAR 	= 640
+	DT_NOTYPE       = 0
+	DT_DATE         = 384
+	DT_TIME         = 388
+	DT_TIMESTAMP    = 392
+	DT_VARCHAR      = 448
+	DT_FIXCHAR      = 452
+	DT_LONGVARCHAR  = 456
+	DT_STRING       = 460
+	DT_DOUBLE       = 480
+	DT_FLOAT        = 482
+	DT_DECIMAL      = 484
+	DT_INT          = 496
+	DT_SMALLINT     = 500
+	DT_BINARY       = 524
+	DT_LONGBINARY   = 528
+	DT_TINYINT      = 604
+	DT_BIGINT       = 608
+	DT_UNSINT       = 612
+	DT_UNSSMALLINT  = 616
+	DT_UNSBIGINT    = 620
+	DT_BIT          = 624
+	DT_LONGNVARCHAR = 640
 )
 
 // byte window used in *byte to slice conversion
 const byteSliceWindow = 1024
 
 type dataValue struct {
-    buffer  *byte
-    buffersize uintptr
-    length  *uintptr
-    datatype   dataType 
-    isnull *bool
+	buffer     *byte
+	buffersize uintptr
+	length     *uintptr
+	datatype   dataType
+	isnull     *bool
 }
 
 // converts specified byte pointer to a proper slice object
 func byteSlice(b *byte, size int) []byte {
-    bs := make([]byte, size)
-    s := bs[:]
-    rawptr := uintptr(unsafe.Pointer(b))
-    for size > byteSliceWindow {
-        copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(rawptr))[:])
-        s = s[byteSliceWindow:]
-        size -= byteSliceWindow
-        rawptr += byteSliceWindow
-    }
-    if size > 0 {
-        copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(rawptr))[:size])
-    }
-    return bs
+	bs := make([]byte, size)
+	s := bs[:]
+	rawptr := uintptr(unsafe.Pointer(b))
+	for size > byteSliceWindow {
+		copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(rawptr))[:])
+		s = s[byteSliceWindow:]
+		size -= byteSliceWindow
+		rawptr += byteSliceWindow
+	}
+	if size > 0 {
+		copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(rawptr))[:size])
+	}
+	return bs
 }
 
 func (dv *dataValue) bufferValue() []byte {
-    //log.Printf("sqla: dv.bufferValue: buffer=%p, size=%d\n", dv.buffer, *dv.length)
-    return byteSlice(dv.buffer, int(*dv.length))
+	//log.Printf("sqla: dv.bufferValue: buffer=%p, size=%d\n", dv.buffer, *dv.length)
+	return byteSlice(dv.buffer, int(*dv.length))
 }
 
 // reference to resultset/statement/just character set?
 func (dv *dataValue) Value() (v interface{}) {
-   switch dv.datatype {
-   case A_BINARY:
-       v = dv.bufferValue()
-   case A_STRING:        // String data: character set conversion performed
-       // TODO(ap): perform conversion according to 'charset'
-       v = byteSliceToString(dv.bufferValue())
-   case A_DOUBLE:
-       v = *(*float64)(unsafe.Pointer(dv.buffer))
-   case A_VAL64:
-       v = *(*int64)(unsafe.Pointer(dv.buffer))
-   case A_UVAL64:
-       v = *(*uint64)(unsafe.Pointer(dv.buffer))
-   case A_VAL32:
-       v = *(*int32)(unsafe.Pointer(dv.buffer))
-   case A_UVAL32:
-       v = *(*uint32)(unsafe.Pointer(dv.buffer))
-   case A_VAL16:
-       v = *(*int16)(unsafe.Pointer(dv.buffer))
-   case A_UVAL16:
-       v = *(*uint16)(unsafe.Pointer(dv.buffer))
-   case A_VAL8:
-       v = *(*int8)(unsafe.Pointer(dv.buffer))
-   case A_UVAL8:
-       v = *dv.buffer
-   }
-   return
+	switch dv.datatype {
+	case A_BINARY:
+		v = dv.bufferValue()
+	case A_STRING: // String data: character set conversion performed
+		// TODO(ap): perform conversion according to 'charset'
+		v = byteSliceToString(dv.bufferValue())
+	case A_DOUBLE:
+		v = *(*float64)(unsafe.Pointer(dv.buffer))
+	case A_VAL64:
+		v = *(*int64)(unsafe.Pointer(dv.buffer))
+	case A_UVAL64:
+		v = *(*uint64)(unsafe.Pointer(dv.buffer))
+	case A_VAL32:
+		v = *(*int32)(unsafe.Pointer(dv.buffer))
+	case A_UVAL32:
+		v = *(*uint32)(unsafe.Pointer(dv.buffer))
+	case A_VAL16:
+		v = *(*int16)(unsafe.Pointer(dv.buffer))
+	case A_UVAL16:
+		v = *(*uint16)(unsafe.Pointer(dv.buffer))
+	case A_VAL8:
+		v = *(*int8)(unsafe.Pointer(dv.buffer))
+	case A_UVAL8:
+		v = *dv.buffer
+	}
+	return
 }
 
 type dataInfo struct {
-    datatype dataType
-    isnull  sacapi_bool
-    datasize uintptr
+	datatype dataType
+	isnull   sacapi_bool
+	datasize uintptr
 }
 
 type dataDirection byte
+
 const (
-    DD_INVALID dataDirection = iota // Invalid data direction
-    DD_INPUT    // Input only host vars
-    DD_OUTPUT   // Output only host vars
-    DD_INPUT_OUTPUT // Host vars of both directions
+	DD_INVALID      dataDirection = iota // Invalid data direction
+	DD_INPUT                             // Input only host vars
+	DD_OUTPUT                            // Output only host vars
+	DD_INPUT_OUTPUT                      // Host vars of both directions
 )
 
 type bindParam struct {
-    dir dataDirection
-    value   dataValue
-    name    *byte       // name of the bind param (used by DescribeBindParam)
+	dir   dataDirection
+	value dataValue
+	name  *byte // name of the bind param (used by DescribeBindParam)
 }
 
 type columnInfo struct {
-    name    *byte
-    datatype dataType
-    nativetype nativeType
-    precision   uint16
-    scale       uint16
-    maxsize     uintptr
-    nullable    sacapi_bool
+	name       *byte
+	datatype   dataType
+	nativetype nativeType
+	precision  uint16
+	scale      uint16
+	maxsize    uintptr
+	nullable   sacapi_bool
 }
 
 func (ci *columnInfo) Name() string {
-    return bytePtrToString(ci.name)
+	return bytePtrToString(ci.name)
 }
 
 func (ci *columnInfo) String() string {
-    s := fmt.Sprintf("name: %s, type: %d, native type: %d, size: %d, nullable: %v",
-                     ci.Name(), ci.datatype, ci.nativetype, ci.maxsize, ci.nullable)
-    return s
+	s := fmt.Sprintf("name: %s, type: %d, native type: %d, size: %d, nullable: %v",
+		ci.Name(), ci.datatype, ci.nativetype, ci.maxsize, ci.nullable)
+	return s
 }
 
 // WIN32
@@ -169,50 +172,50 @@ type sacapi_i32 int32
 type sacapi_bool int32
 
 var (
-	sqlany_affected_rows *syscall.Proc
-	sqlany_bind_param *syscall.Proc
-	sqlany_cancel *syscall.Proc
-	sqlany_clear_error *syscall.Proc
-	sqlany_client_version *syscall.Proc
-	sqlany_client_version_ex *syscall.Proc
-	sqlany_commit *syscall.Proc
-	sqlany_connect *syscall.Proc
+	sqlany_affected_rows       *syscall.Proc
+	sqlany_bind_param          *syscall.Proc
+	sqlany_cancel              *syscall.Proc
+	sqlany_clear_error         *syscall.Proc
+	sqlany_client_version      *syscall.Proc
+	sqlany_client_version_ex   *syscall.Proc
+	sqlany_commit              *syscall.Proc
+	sqlany_connect             *syscall.Proc
 	sqlany_describe_bind_param *syscall.Proc
-	sqlany_disconnect *syscall.Proc
-	sqlany_error *syscall.Proc
-	sqlany_execute *syscall.Proc
-	sqlany_execute_direct *syscall.Proc
-	sqlany_execute_immediate *syscall.Proc
-	sqlany_fetch_absolute *syscall.Proc
-	sqlany_fetch_next *syscall.Proc
-	sqlany_fini *syscall.Proc
-	sqlany_fini_ex *syscall.Proc
-	sqlany_free_connection *syscall.Proc
-	sqlany_free_stmt *syscall.Proc
+	sqlany_disconnect          *syscall.Proc
+	sqlany_error               *syscall.Proc
+	sqlany_execute             *syscall.Proc
+	sqlany_execute_direct      *syscall.Proc
+	sqlany_execute_immediate   *syscall.Proc
+	sqlany_fetch_absolute      *syscall.Proc
+	sqlany_fetch_next          *syscall.Proc
+	sqlany_fini                *syscall.Proc
+	sqlany_fini_ex             *syscall.Proc
+	sqlany_free_connection     *syscall.Proc
+	sqlany_free_stmt           *syscall.Proc
 	sqlany_get_bind_param_info *syscall.Proc
-	sqlany_get_column *syscall.Proc
-	sqlany_get_column_info *syscall.Proc
-	sqlany_get_data *syscall.Proc
-	sqlany_get_data_info *syscall.Proc
-	sqlany_get_next_result *syscall.Proc
-	sqlany_init *syscall.Proc
-	sqlany_init_ex *syscall.Proc
-	sqlany_make_connection *syscall.Proc
-	sqlany_make_connection_ex *syscall.Proc
-	sqlany_new_connection *syscall.Proc
-	sqlany_new_connection_ex *syscall.Proc
-	sqlany_num_cols *syscall.Proc
-	sqlany_num_params *syscall.Proc
-	sqlany_num_rows *syscall.Proc
-	sqlany_prepare *syscall.Proc
-	sqlany_reset *syscall.Proc
-	sqlany_rollback *syscall.Proc
-	sqlany_send_param_data *syscall.Proc
-	sqlany_sqlstate *syscall.Proc
+	sqlany_get_column          *syscall.Proc
+	sqlany_get_column_info     *syscall.Proc
+	sqlany_get_data            *syscall.Proc
+	sqlany_get_data_info       *syscall.Proc
+	sqlany_get_next_result     *syscall.Proc
+	sqlany_init                *syscall.Proc
+	sqlany_init_ex             *syscall.Proc
+	sqlany_make_connection     *syscall.Proc
+	sqlany_make_connection_ex  *syscall.Proc
+	sqlany_new_connection      *syscall.Proc
+	sqlany_new_connection_ex   *syscall.Proc
+	sqlany_num_cols            *syscall.Proc
+	sqlany_num_params          *syscall.Proc
+	sqlany_num_rows            *syscall.Proc
+	sqlany_prepare             *syscall.Proc
+	sqlany_reset               *syscall.Proc
+	sqlany_rollback            *syscall.Proc
+	sqlany_send_param_data     *syscall.Proc
+	sqlany_sqlstate            *syscall.Proc
 )
 
 func init() {
-    d := syscall.MustLoadDLL(libdbcapi_dll)
+	d := syscall.MustLoadDLL(libdbcapi_dll)
 
 	sqlany_affected_rows = d.MustFindProc("sqlany_affected_rows")
 	sqlany_bind_param = d.MustFindProc("sqlany_bind_param")
@@ -257,138 +260,138 @@ func init() {
 }
 
 func sqlaInit(name string) bool {
-    ret, _, _ := sqlany_init.Call(uintptr(unsafe.Pointer(syscall.StringBytePtr(name))),
-        uintptr(API_VERSION_1),
-        0)
-    return ret != 1
+	ret, _, _ := sqlany_init.Call(uintptr(unsafe.Pointer(syscall.StringBytePtr(name))),
+		uintptr(API_VERSION_1),
+		0)
+	return ret != 1
 }
 
 func sqlaFini() {
-    sqlany_fini.Call()
+	sqlany_fini.Call()
 }
 
 type sqlaConn uintptr
 
 func newConnection() sqlaConn {
-    ret, _, _ := sqlany_new_connection.Call()
-    return sqlaConn(ret)
+	ret, _, _ := sqlany_new_connection.Call()
+	return sqlaConn(ret)
 }
 
 func (conn sqlaConn) free() {
-    sqlany_free_connection.Call(uintptr(conn))
+	sqlany_free_connection.Call(uintptr(conn))
 }
 
 func (conn sqlaConn) connect(opts string) (err error) {
-    ret, _, _ := sqlany_connect.Call(uintptr(conn),
-        uintptr(unsafe.Pointer(syscall.StringBytePtr(opts))))
-    if ret != 1 {
-        code, msg := conn.queryError()
-        err = &sqlaError{code: code, msg: msg}
-        return
-    }
-    return nil
+	ret, _, _ := sqlany_connect.Call(uintptr(conn),
+		uintptr(unsafe.Pointer(syscall.StringBytePtr(opts))))
+	if ret != 1 {
+		code, msg := conn.queryError()
+		err = &sqlaError{code: code, msg: msg}
+		return
+	}
+	return nil
 }
 
 func (conn sqlaConn) disconnect() bool {
-    ret, _, _ := sqlany_disconnect.Call(uintptr(conn))
-    return ret == 1
+	ret, _, _ := sqlany_disconnect.Call(uintptr(conn))
+	return ret == 1
 }
 
 type sqlaStmt uintptr
 
 func (conn sqlaConn) prepare(query string) (_ sqlaStmt, err error) {
-    ret, _, _ := sqlany_prepare.Call(uintptr(conn),
-        uintptr(unsafe.Pointer(syscall.StringBytePtr(query))))
-    if ret == 0 {
-        err = conn.newError()
-        return sqlaStmt(0), err
-    }
-    return sqlaStmt(ret), nil
+	ret, _, _ := sqlany_prepare.Call(uintptr(conn),
+		uintptr(unsafe.Pointer(syscall.StringBytePtr(query))))
+	if ret == 0 {
+		err = conn.newError()
+		return sqlaStmt(0), err
+	}
+	return sqlaStmt(ret), nil
 }
 
 func (stmt sqlaStmt) free() {
-    sqlany_free_stmt.Call(uintptr(stmt))
+	sqlany_free_stmt.Call(uintptr(stmt))
 }
 
 func (stmt sqlaStmt) execute() bool {
-    ret, _, _ := sqlany_execute.Call(uintptr(stmt))
-    return ret == 1
+	ret, _, _ := sqlany_execute.Call(uintptr(stmt))
+	return ret == 1
 }
 
 func (conn sqlaConn) executeDirect(query string) (_ sqlaStmt, err error) {
-    ret, _, _ := sqlany_execute_direct.Call(uintptr(conn),
-        uintptr(unsafe.Pointer(syscall.StringBytePtr(query))))
-    if ret == 0 {
-        err = conn.newError()
-        return sqlaStmt(0), err
-    }
-    return sqlaStmt(ret), nil
+	ret, _, _ := sqlany_execute_direct.Call(uintptr(conn),
+		uintptr(unsafe.Pointer(syscall.StringBytePtr(query))))
+	if ret == 0 {
+		err = conn.newError()
+		return sqlaStmt(0), err
+	}
+	return sqlaStmt(ret), nil
 }
 
 // Reset a statement to its prepared state condition
 func (stmt sqlaStmt) reset() bool {
-    ret, _, _ := sqlany_reset.Call(uintptr(stmt))
-    return ret == 1
+	ret, _, _ := sqlany_reset.Call(uintptr(stmt))
+	return ret == 1
 }
 
 // returns number of columns in result set or -1 upon failure
 func (stmt sqlaStmt) numCols() int {
-    ret, _, _ := sqlany_num_cols.Call(uintptr(stmt))
-    return int(ret)
+	ret, _, _ := sqlany_num_cols.Call(uintptr(stmt))
+	return int(ret)
 }
 
 // returns number of rows affected by execution of a previously prepared
 // statement
 // returns -1 upon failure
 func (stmt sqlaStmt) affectedRows() int {
-    ret, _, _ := sqlany_affected_rows.Call(uintptr(stmt))
-    return int(ret)
+	ret, _, _ := sqlany_affected_rows.Call(uintptr(stmt))
+	return int(ret)
 }
 
 // returns number of parameters expected for a prepared statement
 // returns -1 if the statement is invalid
 func (stmt sqlaStmt) numParams() int {
-    ret, _, _ := sqlany_num_params.Call(uintptr(stmt))
-    return int(ret)
+	ret, _, _ := sqlany_num_params.Call(uintptr(stmt))
+	return int(ret)
 }
 
 func (stmt sqlaStmt) fetchNext() bool {
-    ret, _, _ := sqlany_fetch_next.Call(uintptr(stmt))
-    return ret == 1
+	ret, _, _ := sqlany_fetch_next.Call(uintptr(stmt))
+	return ret == 1
 }
 
 func (stmt sqlaStmt) fetchAbsolute(rownum sacapi_i32) bool {
-    ret, _, _ := sqlany_fetch_absolute.Call(uintptr(stmt),
-        uintptr(rownum))
-    return ret == 1
+	ret, _, _ := sqlany_fetch_absolute.Call(uintptr(stmt),
+		uintptr(rownum))
+	return ret == 1
 }
 
 // index specified parameter index in [0..NumParams()-1]
 // bindparam receives the bind parameter information
 func (stmt sqlaStmt) describeBindParam(index sacapi_u32, bindparam *bindParam) bool {
-    ret, _, _ := sqlany_describe_bind_param.Call(uintptr(stmt),
-        uintptr(index),
-        uintptr(unsafe.Pointer(bindparam)))
-    return ret == 1
+	ret, _, _ := sqlany_describe_bind_param.Call(uintptr(stmt),
+		uintptr(index),
+		uintptr(unsafe.Pointer(bindparam)))
+	return ret == 1
 }
 
 // index specified parameter index in [0..NumParams()-1]
 // bindparam specifies the bind parameter data
 func (stmt sqlaStmt) bindParam(index sacapi_u32, bindparam *bindParam) bool {
-    ret, _, _ := sqlany_bind_param.Call(uintptr(stmt),
-        uintptr(index),
-        uintptr(unsafe.Pointer(bindparam)))
-    return ret == 1
+	ret, _, _ := sqlany_bind_param.Call(uintptr(stmt),
+		uintptr(index),
+		uintptr(unsafe.Pointer(bindparam)))
+	return ret == 1
 }
 
 func (conn sqlaConn) commit() bool {
-    ret, _, _ := sqlany_commit.Call(uintptr(conn))
-    return ret == 1
+	ret, _, _ := sqlany_commit.Call(uintptr(conn))
+	return ret == 1
 }
 
 func (conn sqlaConn) rollback() bool {
-    ret, _, _ := sqlany_rollback.Call(uintptr(conn))
-    return ret == 1
+	ret, _, _ := sqlany_rollback.Call(uintptr(conn))
+	return ret == 1
 }
 
 // Retrieve data for column `colindex` in `dataval`.
@@ -402,81 +405,80 @@ func (conn sqlaConn) rollback() bool {
 // This function will fetch _all_ data from server, if you do not want to allocate
 // memory for resources of considerable size, use GetData instead.
 func (stmt sqlaStmt) getColumn(colindex uint, dataval *dataValue) bool {
-    ret, _, _ := sqlany_get_column.Call(uintptr(stmt),
-        uintptr(sacapi_u32(colindex)),
-        uintptr(unsafe.Pointer(dataval)))
-    return ret == 1
+	ret, _, _ := sqlany_get_column.Call(uintptr(stmt),
+		uintptr(sacapi_u32(colindex)),
+		uintptr(unsafe.Pointer(dataval)))
+	return ret == 1
 }
 
 func (stmt sqlaStmt) getColumnInfo(colindex sacapi_u32, colinfo *columnInfo) bool {
-    ret, _, _ := sqlany_get_column_info.Call(uintptr(stmt),
-        uintptr(colindex),
-        uintptr(unsafe.Pointer(colinfo)))
-    return ret == 1
+	ret, _, _ := sqlany_get_column_info.Call(uintptr(stmt),
+		uintptr(colindex),
+		uintptr(unsafe.Pointer(colinfo)))
+	return ret == 1
 }
 
 func (stmt sqlaStmt) getDataInfo(colindex sacapi_u32, datainfo *dataInfo) bool {
-    ret, _, _ := sqlany_get_data_info.Call(uintptr(stmt),
-        uintptr(colindex),
-        uintptr(unsafe.Pointer(datainfo)))
-    return ret == 1
+	ret, _, _ := sqlany_get_data_info.Call(uintptr(stmt),
+		uintptr(colindex),
+		uintptr(unsafe.Pointer(datainfo)))
+	return ret == 1
 }
 
 func (stmt sqlaStmt) getData(colindex sacapi_u32, offset uintptr,
-                             buffer *uintptr, size uintptr) bool {
-    ret, _, _ := sqlany_get_data.Call(uintptr(stmt),
-        uintptr(colindex),
-        offset,
-        uintptr(unsafe.Pointer(buffer)),
-        size)
-    return ret == 1
+	buffer *uintptr, size uintptr) bool {
+	ret, _, _ := sqlany_get_data.Call(uintptr(stmt),
+		uintptr(colindex),
+		offset,
+		uintptr(unsafe.Pointer(buffer)),
+		size)
+	return ret == 1
 }
 
 // Moves to the next result set in multiple result sets return
 func (stmt sqlaStmt) getNextResult() bool {
-    ret, _, _ := sqlany_get_next_result.Call(uintptr(stmt))
-    return ret == 1
+	ret, _, _ := sqlany_get_next_result.Call(uintptr(stmt))
+	return ret == 1
 }
 
 func (conn sqlaConn) newError() (err error) {
-    code, msg := conn.queryError()
-    return &sqlaError{code: code, msg: msg}
+	code, msg := conn.queryError()
+	return &sqlaError{code: code, msg: msg}
 }
 
 func (conn sqlaConn) queryError() (code sacapi_i32, err string) {
-    buf := make([]byte, SACAPI_ERROR_SIZE)
-    ret, _, _ := sqlany_error.Call(uintptr(conn),
-        uintptr(unsafe.Pointer(&buf[0])),
-        uintptr(len(buf)))
-    code = sacapi_i32(ret)
-    err = byteSliceToString(buf)
-    return
+	buf := make([]byte, SACAPI_ERROR_SIZE)
+	ret, _, _ := sqlany_error.Call(uintptr(conn),
+		uintptr(unsafe.Pointer(&buf[0])),
+		uintptr(len(buf)))
+	code = sacapi_i32(ret)
+	err = byteSliceToString(buf)
+	return
 }
 
 func byteSliceToString(b []byte) string {
-    n := 0
-    for n < len(b) && b[n] != 0 {
-        n++
-    }
-    return string(b[0:n])
+	n := 0
+	for n < len(b) && b[n] != 0 {
+		n++
+	}
+	return string(b[0:n])
 }
 
 func bytePtrToString(b *byte) string {
-    return byteSliceToString((*[1024]byte)(unsafe.Pointer(b))[:])
+	return byteSliceToString((*[1024]byte)(unsafe.Pointer(b))[:])
 }
 
 // A generic error type signalled when any of the low-level functions
 // fail
 type sqlaError struct {
-    code sacapi_i32
-    msg string
+	code sacapi_i32
+	msg  string
 }
 
 func (err *sqlaError) Error() string {
-    return fmt.Sprintf("Error: %s, Code: %#v", err.msg, err.code)
+	return fmt.Sprintf("Error: %s, Code: %#v", err.msg, err.code)
 }
 
 func (err *sqlaError) Fatal() bool {
-    return err.code < 0
+	return err.code < 0
 }
-
