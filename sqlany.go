@@ -11,6 +11,7 @@ import (
     "sync"
     "reflect"
     "unsafe"
+    //"runtime/debug"       // PrintStack
 )
 
 var (
@@ -31,6 +32,7 @@ func sqlainit() {
 }
 
 func (d *drv) Open(opts string) (cn driver.Conn, err error) {
+    //log.Printf("sqla: open('%s')\n", opts)
     once.Do(sqlainit)
     h := newConnection()
     err = h.connect(opts)
@@ -75,6 +77,7 @@ func (cn *conn) Close() error {
 }
 
 func (cn *conn) Prepare(query string) (driver.Stmt, error) {
+    //log.Printf("sqla: prepare('%s')\n", query)
     st, err := cn.cn.prepare(query)
     if err != nil {
         return nil, err
@@ -86,8 +89,10 @@ func (cn *conn) Prepare(query string) (driver.Stmt, error) {
         cols := make([]string, numcols)
         for i := 0; i < numcols; i++ {
             if ok := st.getColumnInfo(sacapi_u32(i), colinfo); !ok {
-                break
+                err := cn.cn.newError()
+                return nil, err
             }
+            //log.Printf("colinfo: %v", colinfo)
             cols[i] = colinfo.Name()
         }
         stmt.cols = cols
@@ -163,6 +168,7 @@ type stmt struct {
 // Statements
 //
 func (st *stmt) Close() error {
+    //debug.PrintStack()
     if st.closed {
         log.Print("stmt.Close: invoked on an already closed stmt")
         return nil
@@ -199,7 +205,8 @@ func (st *stmt) bindParam(index uint, param interface{}) (err error) {
         return
     }
     // FIXME(ap): handle param being nil
-    bp.value.isnull = param == nil  // ??
+    isnull := param == nil
+    bp.value.isnull = &isnull
     bp.value.buffersize = reflect.TypeOf(param).Size()
     v := reflect.ValueOf(param)
     switch v.Kind() {
