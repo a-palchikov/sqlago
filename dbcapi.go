@@ -7,6 +7,7 @@ package sqlany
 import (
 	"syscall"
 	"unsafe"
+    //"log"
     "fmt"
 )
 
@@ -34,7 +35,7 @@ const (
     A_UVAL8
 )
 
-type nativeType uint
+type nativeType int
 const (
     DT_NOTYPE       	= 0
     DT_DATE         	= 384
@@ -68,7 +69,7 @@ type dataValue struct {
     buffersize uintptr
     length  *uintptr
     datatype   dataType 
-    isnull bool
+    isnull *bool
 }
 
 // converts specified byte pointer to a proper slice object
@@ -91,7 +92,8 @@ func byteSlice(raw *byte, size int) []byte {
 }
 
 func (dv *dataValue) bufferValue() []byte {
-    return byteSlice(dv.buffer, int(dv.buffersize))
+    //log.Printf("sqla: dv.bufferValue: buffer=%p, size=%d\n", dv.buffer, *dv.length)
+    return byteSlice(dv.buffer, int(*dv.length))
 }
 
 // reference to resultset/statement/just character set?
@@ -154,8 +156,14 @@ type columnInfo struct {
     nullable    sacapi_bool
 }
 
-func (colinfo *columnInfo) Name() string {
-    return bytePtrToString(colinfo.name)
+func (ci *columnInfo) Name() string {
+    return bytePtrToString(ci.name)
+}
+
+func (ci *columnInfo) String() string {
+    s := fmt.Sprintf("name: %s, data type: %d, native type: %d, maxsize: %d, nullable: %v, addr: %p",
+                       ci.Name(), ci.datatype, ci.nativetype, ci.maxsize, ci.nullable, ci)
+    return s
 }
 
 // WIN32
@@ -417,7 +425,7 @@ func (stmt sqlaStmt) getColumn(colindex uint, dataval *dataValue) bool {
 }
 
 func (stmt sqlaStmt) getColumnInfo(colindex sacapi_u32, colinfo *columnInfo) bool {
-    ret, _, _ := sqlany_get_column.Call(uintptr(stmt),
+    ret, _, _ := sqlany_get_column_info.Call(uintptr(stmt),
         uintptr(colindex),
         uintptr(unsafe.Pointer(colinfo)))
     return ret == 1
