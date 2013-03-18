@@ -11,7 +11,6 @@ import (
     "sync"
     "reflect"
     "unsafe"
-    //"runtime/debug"       // PrintStack
 )
 
 var (
@@ -77,7 +76,6 @@ func (cn *conn) Close() error {
 }
 
 func (cn *conn) Prepare(query string) (driver.Stmt, error) {
-    //log.Printf("sqla: prepare('%s')\n", query)
     st, err := cn.cn.prepare(query)
     if err != nil {
         return nil, err
@@ -92,7 +90,6 @@ func (cn *conn) Prepare(query string) (driver.Stmt, error) {
                 err := cn.cn.newError()
                 return nil, err
             }
-            //log.Printf("colinfo: %v", colinfo)
             cols[i] = colinfo.Name()
         }
         stmt.cols = cols
@@ -168,7 +165,6 @@ type stmt struct {
 // Statements
 //
 func (st *stmt) Close() error {
-    //debug.PrintStack()
     if st.closed {
         log.Print("stmt.Close: invoked on an already closed stmt")
         return nil
@@ -193,7 +189,6 @@ func (st *stmt) execute(args []driver.Value) (err error) {
         err = st.cn.cn.newError()
         return
     }
-    //st.executed = true
     return nil
 }
 

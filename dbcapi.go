@@ -7,7 +7,6 @@ package sqlany
 import (
 	"syscall"
 	"unsafe"
-    //"log"
     "fmt"
 )
 
@@ -73,22 +72,20 @@ type dataValue struct {
 }
 
 // converts specified byte pointer to a proper slice object
-func byteSlice(raw *byte, size int) []byte {
-    b := make([]byte, size)
-    s := b[:]
-    off := 0
+func byteSlice(b *byte, size int) []byte {
+    bs := make([]byte, size)
+    s := bs[:]
+    rawptr := uintptr(unsafe.Pointer(b))
     for size > byteSliceWindow {
-        copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(uintptr(unsafe.Pointer(raw))+
-                              uintptr(off)))[:])
+        copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(rawptr))[:])
         s = s[byteSliceWindow:]
         size -= byteSliceWindow
-        off += byteSliceWindow
+        rawptr += byteSliceWindow
     }
     if size > 0 {
-        copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(uintptr(unsafe.Pointer(raw))+
-                              uintptr(off)))[:size])
+        copy(s, (*[byteSliceWindow]byte)(unsafe.Pointer(rawptr))[:size])
     }
-    return b
+    return bs
 }
 
 func (dv *dataValue) bufferValue() []byte {
@@ -161,8 +158,8 @@ func (ci *columnInfo) Name() string {
 }
 
 func (ci *columnInfo) String() string {
-    s := fmt.Sprintf("name: %s, data type: %d, native type: %d, maxsize: %d, nullable: %v, addr: %p",
-                       ci.Name(), ci.datatype, ci.nativetype, ci.maxsize, ci.nullable, ci)
+    s := fmt.Sprintf("name: %s, type: %d, native type: %d, size: %d, nullable: %v",
+                     ci.Name(), ci.datatype, ci.nativetype, ci.maxsize, ci.nullable)
     return s
 }
 
@@ -172,14 +169,6 @@ type sacapi_i32 int32
 type sacapi_bool int32
 
 var (
-	//libdbcapi	uintptr
-
-    /*
-    // **gen**
-    bar = [a for a in foo.split("\n\t") if a]
-    with open(r"dll_vars.go", "w") as f:
-        f.write("\n".join(["\t{0} *syscall.Proc".format(a) for a in bar]))
-    */
 	sqlany_affected_rows *syscall.Proc
 	sqlany_bind_param *syscall.Proc
 	sqlany_cancel *syscall.Proc
@@ -225,11 +214,6 @@ var (
 func init() {
     d := syscall.MustLoadDLL(libdbcapi_dll)
 
-    /*
-    // **gen**
-    with open(r"dll_exports.go", "w") as f:
-        f.write("\n".join(["\t{0} = d.MustFindProc(\"{0}\")".format(a) for a in bar]))
-    */
 	sqlany_affected_rows = d.MustFindProc("sqlany_affected_rows")
 	sqlany_bind_param = d.MustFindProc("sqlany_bind_param")
 	sqlany_cancel = d.MustFindProc("sqlany_cancel")
@@ -469,18 +453,6 @@ func (conn sqlaConn) queryError() (code sacapi_i32, err string) {
     return
 }
 
-/*
-// syscall: StringBytePtr
-func toCString(s string) *byte {
-    b := make([]byte, len(s)+1)
-	for i, v := range s {
-		b[i] = byte(v)
-	}
-	b[len(s)] = 0
-	return &b[0]
-}
-*/
-
 func byteSliceToString(b []byte) string {
     n := 0
     for n < len(b) && b[n] != 0 {
@@ -508,25 +480,3 @@ func (err *sqlaError) Fatal() bool {
     return err.code < 0
 }
 
-// from github.com/bmizerany/pq
-/*
-func errRecover(err *error) {
-    e := recover()
-    switch v := e.(type) {
-    case nil:
-        // nothing
-    case runtime.Error:
-        panic(v)
-    case *SqlaError:
-        if v.Fatal() {
-            *err = driver.ErrBadConn
-        } else {
-            *err = v
-        }
-    case error:
-        *err = v
-    default:
-        panic(fmt.Sprintf("Unknown error: %#v", e))
-    }
-}
-*/
