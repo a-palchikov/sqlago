@@ -1,7 +1,7 @@
 # sqlago - minimalistic Go driver for Sybase SQL Anywhere
 
 ## Installation
-  go get github.ocm/a-palchikov/sqlago
+  go get github.com/a-palchikov/sqlago
 
 ## Examples of use:
 
