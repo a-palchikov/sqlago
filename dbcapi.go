@@ -90,13 +90,28 @@ func byteSlice(b *byte, size int) []byte {
 	return bs
 }
 
+func (dv *dataValue) String() string {
+	isnull := bool(*dv.isnull)
+	s := fmt.Sprintf("type: %d, null: %t, length: %d", dv.datatype, isnull, *dv.length)
+	return s
+}
+
 func (dv *dataValue) bufferValue() []byte {
 	//log.Printf("sqla: dv.bufferValue: buffer=%p, size=%d\n", dv.buffer, *dv.length)
 	return byteSlice(dv.buffer, int(*dv.length))
 }
 
+func (dv *dataValue) isNull() bool {
+	return bool(*dv.isnull)
+}
+
 // reference to resultset/statement/just character set?
 func (dv *dataValue) Value() (v interface{}) {
+	if dv.isNull() {
+		// null
+		v = nil
+		return
+	}
 	switch dv.datatype {
 	case A_BINARY:
 		v = dv.bufferValue()
