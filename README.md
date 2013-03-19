@@ -1,4 +1,4 @@
-# sqlago - minimalistic Go driver for Sybase SQL Anywhere
+# sqlago - minimalistic pure Go driver for Sybase SQL Anywhere
 
 sqlago driver is a wrapper over SQL Anywhere C API
 
