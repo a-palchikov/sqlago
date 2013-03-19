@@ -6,33 +6,29 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"reflect"
-	"sync"
+	"syscall"
 	"unsafe"
 )
 
 var (
 	ErrNotSupported = errors.New("sqla: not supported")
-	once            sync.Once
 )
 
 func init() {
 	sql.Register("sqlany", &drv{})
+	sqlaInit("sqlago")
 }
 
 // database driver
 type drv struct {
 }
 
-func sqlainit() {
-	sqlaInit("sqlago")
-}
-
 func (d *drv) Open(opts string) (cn driver.Conn, err error) {
 	//log.Printf("sqla: open('%s')\n", opts)
-	once.Do(sqlainit)
 	h := newConnection()
 	err = h.connect(opts)
 	if err != nil {
@@ -58,7 +54,7 @@ type tx struct {
 
 // Connection interface
 func (cn *conn) Begin() (driver.Tx, error) {
-	_, err := cn.cn.executeDirect("BEGIN")
+	_, err := cn.cn.executeDirect("BEGIN TRAN")
 	if err != nil {
 		return nil, err
 	}
@@ -176,11 +172,10 @@ func (st *stmt) Close() error {
 
 func (st *stmt) execute(args []driver.Value) (err error) {
 	if args != nil {
-		/*
-		   if len(args) < st.numparams {
-		       return error.New("too few params provided")
-		   }
-		*/
+		if len(args) != st.numparams {
+			return fmt.Errorf("Number of arguments do not match that of bind params provided (%d != %d)",
+				len(args), st.numparams)
+		}
 		for i := 0; i < st.numparams; i++ {
 			st.bindParam(uint(i), args[i])
 		}
@@ -202,7 +197,9 @@ func (st *stmt) bindParam(index uint, param interface{}) (err error) {
 	// FIXME(ap): handle param being nil
 	isnull := param == nil
 	bp.value.isnull = &isnull
-	bp.value.buffersize = reflect.TypeOf(param).Size()
+	datasize := reflect.TypeOf(param).Size()
+	bp.value.buffersize = datasize
+	bp.value.length = &datasize
 	v := reflect.ValueOf(param)
 	switch v.Kind() {
 	case reflect.Bool:
@@ -221,7 +218,6 @@ func (st *stmt) bindParam(index uint, param interface{}) (err error) {
 	case reflect.Int32, reflect.Int:
 		i := int32(v.Int())
 		bp.value.buffer = (*byte)(unsafe.Pointer(&i))
-		bp.value.buffersize = 4
 		bp.value.datatype = A_VAL32
 	case reflect.Int16:
 		i := int16(v.Int())
@@ -237,10 +233,13 @@ func (st *stmt) bindParam(index uint, param interface{}) (err error) {
 		bp.value.datatype = A_DOUBLE
 	case reflect.Complex64, reflect.Complex128:
 	case reflect.String:
-		s := ([]byte)(v.String())
-		bp.value.buffer = (*byte)(unsafe.Pointer(&s[0]))
-		bp.value.buffersize = uintptr(len(s))
 		bp.value.datatype = A_STRING
+		s := v.String()
+		b := syscall.StringBytePtr(s)
+		size := uintptr(len(s))
+		bp.value.buffer = b
+		bp.value.buffersize = size + 1 // account for null terminator
+		bp.value.length = &size
 	default:
 		log.Println("sqla: unsupported type", v)
 	}
@@ -252,7 +251,7 @@ func (st *stmt) bindParam(index uint, param interface{}) (err error) {
 	return nil
 }
 
-func (st *stmt) Query(args []driver.Value) (_ driver.Rows, err error) {
+func (st *stmt) Query(args []driver.Value) (driver.Rows, error) {
 	if err := st.execute(args); err != nil {
 		return nil, err
 	}
@@ -277,7 +276,7 @@ type rows struct {
 }
 
 func (rs *rows) Close() error {
-	return rs.st.Close()
+	return nil
 }
 
 func (rs *rows) Columns() []string {

@@ -146,6 +146,11 @@ type bindParam struct {
 	name  *byte // name of the bind param (used by DescribeBindParam)
 }
 
+func (bp *bindParam) String() string {
+	s := fmt.Sprintf("name: %s", bytePtrToString(bp.name))
+	return s
+}
+
 type columnInfo struct {
 	name       *byte
 	datatype   dataType
