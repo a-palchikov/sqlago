@@ -1,4 +1,4 @@
-# sqlago - minimalistic Go driver for Sybase SQL Anywhere
+# sqlago - minimalistic pure Go driver for Sybase SQL Anywhere
 
 sqlago driver is a wrapper over SQL Anywhere C API
 
@@ -39,6 +39,26 @@ sqlago driver is a wrapper over SQL Anywhere C API
                 log.Fatalf("Select failed: %s", err)
             }
             log.Printf("version: %0.2f, product: %s, uid: %s", version, product, name)
+        }
+    }
+
+### Using prepared statements: 
+
+    func preparedQuery(db *sql.DB) {
+        st, err := db.Prepare("select langid from language where name = :name")
+        if err != nil {
+            log.Fatalln("Failed to prepare statement", err)
+        }
+        defer st.Close()    // explicit Close() required for statements obtained with Prepare()
+        langs := []string{"english", "chinese"}
+        var langid int
+        for _, v := range langs {
+            st.QueryRow(v).Scan(&langid)
+            if err != nil {
+                // non-fatal
+                log.Printf("Failed to retrieve language id for '%s': %s", v, err)
+            }
+            log.Println("Language id", langid)
         }
     }
 
