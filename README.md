@@ -21,13 +21,13 @@ sqlago driver is a wrapper over SQL Anywhere C API
             log.Fatalf("Unable to connect to db: %s", err)
         }
         // Run basic query
-        var name
-        err = db.QueryRow("select name from users where user_id is not null").Scan(&name)
+        var name string
+        err = db.QueryRow("select name from users").Scan(&name)
         if err != nil {
             log.Fatalf("Select failed: %s", err)
         }
         // Run query with multiple return rows
-        rows, err = db.Query("select version, product, uid from myproducts")
+        rows, err = db.Query("select version, product, uid from products")
         if err != nil {
             log.Fatalf("Select failed: %s", err)
         }
