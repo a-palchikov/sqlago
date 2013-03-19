@@ -71,6 +71,14 @@ Connection string format is the format ubiquitously accepted by SQLA toolset:
     
 See http://dcx.sybase.com/index.html#1201/en/dbadmin/how-introduction-connect.html for detailed reference.
 
+## Testing
+
+An accompanying `boostrap_test.cmd` batch file assumes SQL Anywhere 11 installation - edit it with the path to your installation
+in case it differs.
+
+Invoke the bootstrap batch to create an empty database, followed by `go test`.
+
+
 ## Tested on
 
 Windows 7 Pro 64bit
