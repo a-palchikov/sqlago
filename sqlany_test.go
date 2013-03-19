@@ -3,28 +3,28 @@
 package sqlany
 
 import (
-    "database/sql"
-    "database/sql/driver"
-    "testing"
-    "log"
+	"database/sql"
+	"database/sql/driver"
+	"log"
+	"testing"
 )
 
 // tests (mostly unmodified) courtesy of github.com/bmizerany/pq
 type Fataler interface {
-    Fatal(args ...interface{})
+	Fatal(args ...interface{})
 }
 
 func openTestConn(t Fataler) *sql.DB {
-    db, err := sql.Open("sqlany", "uid=dba;pwd=sql;dbf=test")
-    if err != nil {
-        t.Fatal(err)
-    }
-    return db
+	db, err := sql.Open("sqlany", "uid=dba;pwd=sql;dbf=test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db
 }
 
 func TestExec(t *testing.T) {
-    db := openTestConn(t)
-    defer db.Close()
+	db := openTestConn(t)
+	defer db.Close()
 
 	_, err := db.Exec("CREATE TABLE #temp (a INT)")
 	if err != nil {
@@ -40,8 +40,8 @@ func TestExec(t *testing.T) {
 		t.Fatalf("expected 1 row affected, not %d", n)
 	}
 
-    // unfortunately, Sybase (<12) does not support multirow inserts
-    // so keeping this really simple
+	// unfortunately, Sybase (<12) does not support multirow inserts
+	// so keeping this really simple
 	r, err = db.Exec("INSERT INTO #temp VALUES (?)", 1)
 	if err != nil {
 		t.Fatal(err)
@@ -138,7 +138,7 @@ func TestNoData(t *testing.T) {
 	db := openTestConn(t)
 	defer db.Close()
 
-    // sqla does not have booleans
+	// sqla does not have booleans
 	st, err := db.Prepare("SELECT 1 WHERE 1 = 0")
 	if err != nil {
 		t.Fatal(err)
@@ -206,7 +206,7 @@ func TestExecerInterface(t *testing.T) {
 	var cni interface{} = cn
 
 	_, ok := cni.(driver.Execer)
-    // [ap]: inverted as sqlago does not yet implement Execer
+	// [ap]: inverted as sqlago does not yet implement Execer
 	if ok {
 		t.Fatal("Driver should not implement Execer")
 	}
@@ -250,7 +250,7 @@ func TestNullAfterNonNull(t *testing.T) {
 	}
 
 	if n.Valid {
-        log.Printf("%v", n)
+		log.Printf("%v", n)
 		t.Fatal("expected n to be invalid")
 	}
 
@@ -258,4 +258,3 @@ func TestNullAfterNonNull(t *testing.T) {
 		t.Fatalf("expected n to 2, not %d", n.Int64)
 	}
 }
-
