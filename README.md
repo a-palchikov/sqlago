@@ -10,7 +10,7 @@ sqlago driver is a wrapper over SQL Anywhere C API
     package main
     
     import (
-        _ "github.ocm/a-palchikov/sqlago"
+        _ "github.com/a-palchikov/sqlago"
         "database/sql"
         "log"
     )
