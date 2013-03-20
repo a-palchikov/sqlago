@@ -18,9 +18,10 @@ const (
 	libdbcapi_dll = "dbcapi.dll"
 )
 
-type dataType int
+type dataType int32
 
 const (
+	// do not reorder
 	A_INVALID_TYPE dataType = iota // invalid data type
 	A_BINARY                       // Binary data: treated as is (no conversions performed)
 	A_STRING                       // String data: character set conversion performed
@@ -35,7 +36,7 @@ const (
 	A_UVAL8
 )
 
-type nativeType int
+type nativeType int32
 
 const (
 	DT_NOTYPE       = 0
@@ -99,7 +100,15 @@ func (dv *dataValue) String() string {
 
 func (dv *dataValue) bufferValue() []byte {
 	//log.Printf("sqla: dv.bufferValue: buffer=%p, size=%d\n", dv.buffer, *dv.length)
-	return byteSlice(dv.buffer, int(*dv.length))
+	size := int(*dv.length)
+	// [ap]: optimize by using a single cast for buffers upto 1mb in size
+	// fall back to slower method if bigger
+	if size < 1<<20 {
+		b := make([]byte, int(*dv.length))
+		copy(b, (*[1 << 20]byte)(unsafe.Pointer(dv.buffer))[:])
+		return b
+	}
+	return byteSlice(dv.buffer, size)
 }
 
 func (dv *dataValue) isNull() bool {
@@ -150,6 +159,7 @@ type dataInfo struct {
 type dataDirection byte
 
 const (
+	// do not reorder
 	DD_INVALID      dataDirection = iota // Invalid data direction
 	DD_INPUT                             // Input only host vars
 	DD_OUTPUT                            // Output only host vars
@@ -193,92 +203,53 @@ type sacapi_i32 int32
 type sacapi_bool int32
 
 var (
-	sqlany_affected_rows       *syscall.Proc
-	sqlany_bind_param          *syscall.Proc
-	sqlany_cancel              *syscall.Proc
-	sqlany_clear_error         *syscall.Proc
-	sqlany_client_version      *syscall.Proc
-	sqlany_client_version_ex   *syscall.Proc
-	sqlany_commit              *syscall.Proc
-	sqlany_connect             *syscall.Proc
-	sqlany_describe_bind_param *syscall.Proc
-	sqlany_disconnect          *syscall.Proc
-	sqlany_error               *syscall.Proc
-	sqlany_execute             *syscall.Proc
-	sqlany_execute_direct      *syscall.Proc
-	sqlany_execute_immediate   *syscall.Proc
-	sqlany_fetch_absolute      *syscall.Proc
-	sqlany_fetch_next          *syscall.Proc
-	sqlany_fini                *syscall.Proc
-	sqlany_fini_ex             *syscall.Proc
-	sqlany_free_connection     *syscall.Proc
-	sqlany_free_stmt           *syscall.Proc
-	sqlany_get_bind_param_info *syscall.Proc
-	sqlany_get_column          *syscall.Proc
-	sqlany_get_column_info     *syscall.Proc
-	sqlany_get_data            *syscall.Proc
-	sqlany_get_data_info       *syscall.Proc
-	sqlany_get_next_result     *syscall.Proc
-	sqlany_init                *syscall.Proc
-	sqlany_init_ex             *syscall.Proc
-	sqlany_make_connection     *syscall.Proc
-	sqlany_make_connection_ex  *syscall.Proc
-	sqlany_new_connection      *syscall.Proc
-	sqlany_new_connection_ex   *syscall.Proc
-	sqlany_num_cols            *syscall.Proc
-	sqlany_num_params          *syscall.Proc
-	sqlany_num_rows            *syscall.Proc
-	sqlany_prepare             *syscall.Proc
-	sqlany_reset               *syscall.Proc
-	sqlany_rollback            *syscall.Proc
-	sqlany_send_param_data     *syscall.Proc
-	sqlany_sqlstate            *syscall.Proc
+	dll = syscall.MustLoadDLL(libdbcapi_dll)
+
+	sqlany_affected_rows       = dll.MustFindProc("sqlany_affected_rows")
+	sqlany_bind_param          = dll.MustFindProc("sqlany_bind_param")
+	sqlany_cancel              = dll.MustFindProc("sqlany_cancel")
+	sqlany_clear_error         = dll.MustFindProc("sqlany_clear_error")
+	sqlany_client_version      = dll.MustFindProc("sqlany_client_version")
+	sqlany_client_version_ex   = dll.MustFindProc("sqlany_client_version_ex")
+	sqlany_commit              = dll.MustFindProc("sqlany_commit")
+	sqlany_connect             = dll.MustFindProc("sqlany_connect")
+	sqlany_describe_bind_param = dll.MustFindProc("sqlany_describe_bind_param")
+	sqlany_disconnect          = dll.MustFindProc("sqlany_disconnect")
+	sqlany_error               = dll.MustFindProc("sqlany_error")
+	sqlany_execute             = dll.MustFindProc("sqlany_execute")
+	sqlany_execute_direct      = dll.MustFindProc("sqlany_execute_direct")
+	sqlany_execute_immediate   = dll.MustFindProc("sqlany_execute_immediate")
+	sqlany_fetch_absolute      = dll.MustFindProc("sqlany_fetch_absolute")
+	sqlany_fetch_next          = dll.MustFindProc("sqlany_fetch_next")
+	sqlany_fini                = dll.MustFindProc("sqlany_fini")
+	sqlany_fini_ex             = dll.MustFindProc("sqlany_fini_ex")
+	sqlany_free_connection     = dll.MustFindProc("sqlany_free_connection")
+	sqlany_free_stmt           = dll.MustFindProc("sqlany_free_stmt")
+	sqlany_get_bind_param_info = dll.MustFindProc("sqlany_get_bind_param_info")
+	sqlany_get_column          = dll.MustFindProc("sqlany_get_column")
+	sqlany_get_column_info     = dll.MustFindProc("sqlany_get_column_info")
+	sqlany_get_data            = dll.MustFindProc("sqlany_get_data")
+	sqlany_get_data_info       = dll.MustFindProc("sqlany_get_data_info")
+	sqlany_get_next_result     = dll.MustFindProc("sqlany_get_next_result")
+	sqlany_init                = dll.MustFindProc("sqlany_init")
+	sqlany_init_ex             = dll.MustFindProc("sqlany_init_ex")
+	sqlany_make_connection     = dll.MustFindProc("sqlany_make_connection")
+	sqlany_make_connection_ex  = dll.MustFindProc("sqlany_make_connection_ex")
+	sqlany_new_connection      = dll.MustFindProc("sqlany_new_connection")
+	sqlany_new_connection_ex   = dll.MustFindProc("sqlany_new_connection_ex")
+	sqlany_num_cols            = dll.MustFindProc("sqlany_num_cols")
+	sqlany_num_params          = dll.MustFindProc("sqlany_num_params")
+	sqlany_num_rows            = dll.MustFindProc("sqlany_num_rows")
+	sqlany_prepare             = dll.MustFindProc("sqlany_prepare")
+	sqlany_reset               = dll.MustFindProc("sqlany_reset")
+	sqlany_rollback            = dll.MustFindProc("sqlany_rollback")
+	sqlany_send_param_data     = dll.MustFindProc("sqlany_send_param_data")
+	sqlany_sqlstate            = dll.MustFindProc("sqlany_sqlstate")
 )
 
-func init() {
-	d := syscall.MustLoadDLL(libdbcapi_dll)
-
-	sqlany_affected_rows = d.MustFindProc("sqlany_affected_rows")
-	sqlany_bind_param = d.MustFindProc("sqlany_bind_param")
-	sqlany_cancel = d.MustFindProc("sqlany_cancel")
-	sqlany_clear_error = d.MustFindProc("sqlany_clear_error")
-	sqlany_client_version = d.MustFindProc("sqlany_client_version")
-	sqlany_client_version_ex = d.MustFindProc("sqlany_client_version_ex")
-	sqlany_commit = d.MustFindProc("sqlany_commit")
-	sqlany_connect = d.MustFindProc("sqlany_connect")
-	sqlany_describe_bind_param = d.MustFindProc("sqlany_describe_bind_param")
-	sqlany_disconnect = d.MustFindProc("sqlany_disconnect")
-	sqlany_error = d.MustFindProc("sqlany_error")
-	sqlany_execute = d.MustFindProc("sqlany_execute")
-	sqlany_execute_direct = d.MustFindProc("sqlany_execute_direct")
-	sqlany_execute_immediate = d.MustFindProc("sqlany_execute_immediate")
-	sqlany_fetch_absolute = d.MustFindProc("sqlany_fetch_absolute")
-	sqlany_fetch_next = d.MustFindProc("sqlany_fetch_next")
-	sqlany_fini = d.MustFindProc("sqlany_fini")
-	sqlany_fini_ex = d.MustFindProc("sqlany_fini_ex")
-	sqlany_free_connection = d.MustFindProc("sqlany_free_connection")
-	sqlany_free_stmt = d.MustFindProc("sqlany_free_stmt")
-	sqlany_get_bind_param_info = d.MustFindProc("sqlany_get_bind_param_info")
-	sqlany_get_column = d.MustFindProc("sqlany_get_column")
-	sqlany_get_column_info = d.MustFindProc("sqlany_get_column_info")
-	sqlany_get_data = d.MustFindProc("sqlany_get_data")
-	sqlany_get_data_info = d.MustFindProc("sqlany_get_data_info")
-	sqlany_get_next_result = d.MustFindProc("sqlany_get_next_result")
-	sqlany_init = d.MustFindProc("sqlany_init")
-	sqlany_init_ex = d.MustFindProc("sqlany_init_ex")
-	sqlany_make_connection = d.MustFindProc("sqlany_make_connection")
-	sqlany_make_connection_ex = d.MustFindProc("sqlany_make_connection_ex")
-	sqlany_new_connection = d.MustFindProc("sqlany_new_connection")
-	sqlany_new_connection_ex = d.MustFindProc("sqlany_new_connection_ex")
-	sqlany_num_cols = d.MustFindProc("sqlany_num_cols")
-	sqlany_num_params = d.MustFindProc("sqlany_num_params")
-	sqlany_num_rows = d.MustFindProc("sqlany_num_rows")
-	sqlany_prepare = d.MustFindProc("sqlany_prepare")
-	sqlany_reset = d.MustFindProc("sqlany_reset")
-	sqlany_rollback = d.MustFindProc("sqlany_rollback")
-	sqlany_send_param_data = d.MustFindProc("sqlany_send_param_data")
-	sqlany_sqlstate = d.MustFindProc("sqlany_sqlstate")
-}
+// TODO: Using syscall.(*Proc).Call is OK at the start, but inefficient as
+// it allocates memory. It would make sense to avoid the allocation by using
+// scyscall.Syscall/syscall.Syscall6 instead.
 
 func sqlaInit(name string) bool {
 	ret, _, _ := sqlany_init.Call(uintptr(unsafe.Pointer(syscall.StringBytePtr(name))),
@@ -478,11 +449,12 @@ func (conn sqlaConn) queryError() (code sacapi_i32, err string) {
 }
 
 func byteSliceToString(b []byte) string {
-	n := 0
-	for n < len(b) && b[n] != 0 {
-		n++
+	for i, v := range b {
+		if v == 0 {
+			return string(b[:i])
+		}
 	}
-	return string(b[0:n])
+	return string(b)
 }
 
 func bytePtrToString(b *byte) string {

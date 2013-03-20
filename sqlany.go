@@ -34,7 +34,7 @@ func (d *drv) Open(opts string) (_ driver.Conn, err error) {
 	if err != nil {
 		return
 	}
-	c := &conn{cn: h, connected: true}
+	c := &conn{cn: h, connected: true, charset: "utf-8"}
 	// query the character set
 	var cs string
 	err = c.queryRow("select connection_property('CharSet')", &cs)
