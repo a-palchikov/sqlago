@@ -92,7 +92,8 @@ func byteSlice(b *byte, size int) []byte {
 
 func (dv *dataValue) String() string {
 	isnull := bool(*dv.isnull)
-	s := fmt.Sprintf("type: %d, null: %t, length: %d", dv.datatype, isnull, *dv.length)
+	s := fmt.Sprintf("type: %d, null: %t, length: %d, buffer size: %d, value: %s",
+		dv.datatype, isnull, *dv.length, dv.buffersize, bytePtrToString(dv.buffer))
 	return s
 }
 

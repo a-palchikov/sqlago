@@ -27,18 +27,22 @@ func init() {
 type drv struct {
 }
 
-func (d *drv) Open(opts string) (cn driver.Conn, err error) {
+func (d *drv) Open(opts string) (_ driver.Conn, err error) {
 	//log.Printf("sqla: open('%s')\n", opts)
 	h := newConnection()
 	err = h.connect(opts)
 	if err != nil {
 		return
 	}
-	cn = &conn{cn: h, connected: true}
+	c := &conn{cn: h, connected: true}
 	// query the character set
-	// TODO(ap)
-	//cn.Exec("select connection_property('CharSet')", nil)
-	return
+	var cs string
+	err = c.queryRow("select connection_property('CharSet')", &cs)
+	if err == nil {
+		c.charset = cs
+	}
+	//log.Println("charset:", cs)
+	return c, err
 }
 
 type conn struct {
@@ -93,6 +97,50 @@ func (cn *conn) Prepare(query string) (driver.Stmt, error) {
 	return stmt, nil
 }
 
+// Special purpose restricted query implementation that only knows
+// about strings/ints
+//
+// It is used to query attributes such as `character set` and
+// `last insert id` internally which otherwise would rely on much of
+// the functionality which is currently unfortunately an implementation
+// detail of Go's database package (database.Rows and database.Rows.Scan
+// for instance).
+//
+// Imagine having to use database/sql inside of the driver implementation
+// and you'll get the idea
+func (cn *conn) queryRow(query string, args ...interface{}) (err error) {
+	st, err := cn.cn.executeDirect(query)
+	if err != nil {
+		return
+	}
+	defer st.free()
+	if ok := st.fetchNext(); !ok {
+		return io.EOF
+	}
+	if numcols := st.numCols(); numcols > 0 {
+		data := &dataValue{}
+		for i := 0; i < numcols; i++ {
+			if ok := st.getColumn(uint(i), data); !ok {
+				err = cn.cn.newError()
+				return
+			}
+			switch s := data.Value().(type) {
+			case string:
+				switch d := args[i].(type) {
+				case *string:
+					*d = string(s)
+				}
+			case uint64:
+				switch d := args[i].(type) {
+				case *uint64:
+					*d = uint64(s)
+				}
+			}
+		}
+	}
+	return
+}
+
 // optional Execer interface for one-shot queries
 /*
 func (cn *conn) Exec(query string, args []driver.Value) (driver.Result, error) {
@@ -136,17 +184,12 @@ func (res *result) RowsAffected() (int64, error) {
 }
 
 func (res *result) LastInsertId() (int64, error) {
-	/*
-	   rows, err := res.st.Query("select @@identity")
-	   rows.Next()
-	   var id int
-	   err = rows.Scan(&id)
-	   if err != nil {
-	       return -1, errors.New("sqla: unable to query last insert id")
-	   }
-	   //TODO(ap): maybe implement
-	*/
-	return 0, ErrNotSupported
+	var id uint64
+	if err := res.st.cn.queryRow("select @@identity", &id); err != nil {
+		return 0, err
+	}
+	return int64(id), nil
+	//return 0, ErrNotSupported
 }
 
 type stmt struct {
@@ -198,6 +241,7 @@ func (st *stmt) bindParam(index uint, param interface{}) (err error) {
 	isnull := param == nil
 	bp.value.isnull = &isnull
 	datasize := reflect.TypeOf(param).Size()
+	// initial approximation
 	bp.value.buffersize = datasize
 	bp.value.length = &datasize
 	v := reflect.ValueOf(param)
@@ -240,8 +284,18 @@ func (st *stmt) bindParam(index uint, param interface{}) (err error) {
 		bp.value.buffer = b
 		bp.value.buffersize = size + 1 // account for null terminator
 		bp.value.length = &size
+	case reflect.Slice:
+		if b, ok := v.Interface().([]byte); ok {
+			bp.value.datatype = A_BINARY
+			bp.value.buffer = &b[0]
+			size := uintptr(v.Len())
+			bp.value.buffersize = size
+			bp.value.length = &size
+		}
+		// FIXME(ap): fallthrough for non-byte slices
 	default:
 		log.Println("sqla: unsupported type", v)
+		return ErrNotSupported
 	}
 	if ok := st.st.bindParam(idx, bp); !ok {
 		err = st.cn.cn.newError()
@@ -263,7 +317,7 @@ func (st *stmt) Exec(args []driver.Value) (driver.Result, error) {
 		return nil, err
 	}
 	numrows := st.st.affectedRows()
-	r := &result{numaffected: int64(numrows)}
+	r := &result{st: st, numaffected: int64(numrows)}
 	return r, nil
 }
 
