@@ -210,22 +210,22 @@ func (st *stmt) Close() error {
 		log.Print("stmt.Close: invoked on an already closed stmt")
 		return nil
 	}
-    if st.st.numCols() > 0 {
-        st.st.reset()
-        /* if isAutoCommit {
-            _ = st.cn.cn.commit()   // ignore the result
-        } */
-    }
+	if st.st.numCols() > 0 {
+		st.st.reset()
+		/* if isAutoCommit {
+		    _ = st.cn.cn.commit()   // ignore the result
+		} */
+	}
 	st.st.free()
 	st.closed = true
 	return nil
 }
 
 func (st *stmt) execute(args []driver.Value) (err error) {
-    if st.st.numCols() > 0 {
-        // auto-commit if configured
-        st.st.reset()
-    }
+	if st.st.numCols() > 0 {
+		// auto-commit if configured
+		st.st.reset()
+	}
 	if args != nil {
 		if len(args) != st.numparams {
 			return fmt.Errorf("Number of arguments do not match that of bind params provided (%d != %d)",
@@ -353,9 +353,9 @@ func (rs *rows) Next(dest []driver.Value) (err error) {
 	if ok := rs.st.st.fetchNext(); !ok {
 		return io.EOF
 	}
-    if err = rs.st.cn.cn.newError(); err != nil {
-        return
-    }
+	if err = rs.st.cn.cn.newError(); err != nil {
+		return
+	}
 	if numcols := rs.st.st.numCols(); numcols > 0 {
 		data := &dataValue{}
 		for i := 0; i < numcols; i++ {

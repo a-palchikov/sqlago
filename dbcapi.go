@@ -64,7 +64,7 @@ const (
 )
 
 // byte window used in *byte to slice conversion
-const byteSliceWindow = 10<<20
+const byteSliceWindow = 10 << 20
 
 type dataValue struct {
 	buffer     *byte
@@ -94,8 +94,8 @@ func byteSlice(b *byte, size int) []byte {
 func (dv *dataValue) String() string {
 	isnull := bool(*dv.isnull)
 	s := fmt.Sprintf("type: %d, null: %t, length: %d, buffer size: %d, value: %s",
-                     dv.datatype, isnull, *dv.length, dv.buffersize,
-                     bytePtrToString(dv.buffer))
+		dv.datatype, isnull, *dv.length, dv.buffersize,
+		bytePtrToString(dv.buffer))
 	return s
 }
 
@@ -126,10 +126,10 @@ func (dv *dataValue) Value() (v interface{}) {
 	case A_BINARY:
 		v = dv.bufferValue()
 	case A_STRING:
-        // currently, character set is configured as utf-8 (effective
-        // for each connection, set as a connection option)
-        // this will make the server provide text in unicode w/o having
-        // to perform manual conversion
+		// currently, character set is configured as utf-8 (effective
+		// for each connection, set as a connection option)
+		// this will make the server provide text in unicode w/o having
+		// to perform manual conversion
 		v = byteSliceToString(dv.bufferValue())
 	case A_DOUBLE:
 		v = *(*float64)(unsafe.Pointer(dv.buffer))
@@ -170,15 +170,15 @@ const (
 )
 
 func (dd dataDirection) String() string {
-    switch dd {
-    case DD_INPUT:
-        return "input"
-    case DD_OUTPUT:
-        return "input"
-    case DD_INPUT_OUTPUT:
-        return "input_output"
-    }
-    return "unknown direction"
+	switch dd {
+	case DD_INPUT:
+		return "input"
+	case DD_OUTPUT:
+		return "input"
+	case DD_INPUT_OUTPUT:
+		return "input_output"
+	}
+	return "unknown direction"
 }
 
 type bindParam struct {
@@ -188,8 +188,8 @@ type bindParam struct {
 }
 
 func (bp *bindParam) String() string {
-    s := fmt.Sprintf("name: %s; value: %s; dir: %s", bytePtrToString(bp.name),
-                     bp.value.String(), bp.dir)
+	s := fmt.Sprintf("name: %s; value: %s; dir: %s", bytePtrToString(bp.name),
+		bp.value.String(), bp.dir)
 	return s
 }
 
@@ -338,14 +338,14 @@ func (conn sqlaConn) executeDirect(query string) (_ sqlaStmt, err error) {
 }
 
 func (conn sqlaConn) executeImmediate(query string) (err error) {
-	ret , _, _ := syscall.Syscall(
-        sqlany_execute_immediate.Addr(),
-        uintptr(2),
-        uintptr(conn),
+	ret, _, _ := syscall.Syscall(
+		sqlany_execute_immediate.Addr(),
+		uintptr(2),
+		uintptr(conn),
 		uintptr(unsafe.Pointer(syscall.StringBytePtr(query))),
-        0)
+		0)
 	if ret == 0 {
-        err = conn.newError()
+		err = conn.newError()
 		return
 	}
 	return
@@ -466,10 +466,10 @@ func (stmt sqlaStmt) getNextResult() bool {
 
 func (conn sqlaConn) newError() (err error) {
 	code, msg := conn.queryError()
-    if code != 0 {
-        return &sqlaError{code: code, msg: msg}
-    }
-    return nil
+	if code != 0 {
+		return &sqlaError{code: code, msg: msg}
+	}
+	return nil
 }
 
 func (conn sqlaConn) queryError() (code sacapi_i32, err string) {
