@@ -1,4 +1,4 @@
-# sqlago - minimalistic pure Go driver for Sybase SQL Anywhere
+# sqlago - pure Go driver for Sybase SQL Anywhere
 
 sqlago driver is a wrapper over SQL Anywhere C API
 
@@ -6,7 +6,7 @@ sqlago driver is a wrapper over SQL Anywhere C API
   go get github.com/a-palchikov/sqlago
 
 ## Examples of use:
-
+```go
     package main
     
     import (
@@ -41,9 +41,9 @@ sqlago driver is a wrapper over SQL Anywhere C API
             log.Printf("version: %0.2f, product: %s, uid: %s", version, product, name)
         }
     }
-
+```
 ### Using prepared statements: 
-
+```go
     func preparedQuery(db *sql.DB) {
         st, err := db.Prepare("select langid from language where name = :name")
         if err != nil {
@@ -61,7 +61,7 @@ sqlago driver is a wrapper over SQL Anywhere C API
             log.Println("Language id", langid)
         }
     }
-
+```
 
 ## Connection string
 
