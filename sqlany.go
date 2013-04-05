@@ -28,20 +28,19 @@ type drv struct {
 }
 
 func (d *drv) Open(opts string) (_ driver.Conn, err error) {
-	//log.Printf("sqla: open('%s')\n", opts)
 	h := newConnection()
-	err = h.connect(opts)
+	// [ap]: augment the connection options string to instruct the server
+	// to perform character set conversions and return strings in utf-8
+	err = h.connect(opts + ";cs=utf8")
 	if err != nil {
 		return
 	}
 	c := &conn{cn: h, connected: true, charset: "utf-8"}
 	// query the character set
 	var cs string
-	err = c.queryRow("select connection_property('CharSet')", &cs)
-	if err == nil {
+	if err = c.queryRow("select connection_property('CharSet')", &cs); err == nil {
 		c.charset = cs
 	}
-	//log.Println("charset:", cs)
 	return c, err
 }
 
@@ -142,20 +141,21 @@ func (cn *conn) queryRow(query string, args ...interface{}) (err error) {
 }
 
 // optional Execer interface for one-shot queries
+// TODO(ap): to be able to implement this correctly, I need to differentiate
+// between queries that do not return a resultset (as executeImmediately expects)
+// No other way to do that (to still be able to fallback to default behaviour)
+// than checking if a query is a `DELETE` or `UPDATE` for instance - meaah
 /*
 func (cn *conn) Exec(query string, args []driver.Value) (driver.Result, error) {
-    if len(args) == 0 {
-        st, err := cn.cn.executeDirect(query)
-        stmt := &stmt{st: st, cn: cn, numparams: 0}
-        if err != nil {
-            return nil, err
-        }
-        numaffected := st.affectedRows()
-        return &result{st: stmt, numaffected: int64(numaffected)}, nil
-    }
-
-    // return ErrSkip to run the default implementation
-    return nil, driver.ErrSkip
+	if len(args) == 0 {
+		err := cn.cn.executeImmediate(query)
+		if err != nil {
+			return nil, err
+		}
+		return &result{}, nil
+	}
+	// return ErrSkip to run the default implementation
+	return nil, driver.ErrSkip
 }
 */
 
@@ -184,12 +184,14 @@ func (res *result) RowsAffected() (int64, error) {
 }
 
 func (res *result) LastInsertId() (int64, error) {
-	var id uint64
-	if err := res.st.cn.queryRow("select @@identity", &id); err != nil {
-		return 0, err
+	if res.st != nil {
+		var id uint64
+		if err := res.st.cn.queryRow("select @@identity", &id); err != nil {
+			return 0, err
+		}
+		return int64(id), nil
 	}
-	return int64(id), nil
-	//return 0, ErrNotSupported
+	return 0, ErrNotSupported
 }
 
 type stmt struct {
@@ -208,12 +210,22 @@ func (st *stmt) Close() error {
 		log.Print("stmt.Close: invoked on an already closed stmt")
 		return nil
 	}
+    if st.st.numCols() > 0 {
+        st.st.reset()
+        /* if isAutoCommit {
+            _ = st.cn.cn.commit()   // ignore the result
+        } */
+    }
 	st.st.free()
 	st.closed = true
 	return nil
 }
 
 func (st *stmt) execute(args []driver.Value) (err error) {
+    if st.st.numCols() > 0 {
+        // auto-commit if configured
+        st.st.reset()
+    }
 	if args != nil {
 		if len(args) != st.numparams {
 			return fmt.Errorf("Number of arguments do not match that of bind params provided (%d != %d)",
@@ -341,6 +353,9 @@ func (rs *rows) Next(dest []driver.Value) (err error) {
 	if ok := rs.st.st.fetchNext(); !ok {
 		return io.EOF
 	}
+    if err = rs.st.cn.cn.newError(); err != nil {
+        return
+    }
 	if numcols := rs.st.st.numCols(); numcols > 0 {
 		data := &dataValue{}
 		for i := 0; i < numcols; i++ {

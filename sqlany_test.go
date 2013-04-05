@@ -17,7 +17,7 @@ type Fataler interface {
 }
 
 func openTestConn(t Fataler) *sql.DB {
-	db, err := sql.Open("sqlany", "uid=dba;pwd=sql;dbf=test")
+	db, err := sql.Open("sqlany", "uid=dba;pwd=sql;dbf=test;eng=test")
 	if err != nil {
 		t.Fatal(err)
 	}
