@@ -352,12 +352,13 @@ func (rs *rows) Columns() []string {
 func (rs *rows) Next(dest []driver.Value) (err error) {
 	if ok := rs.st.st.fetchNext(); !ok {
 		if err = rs.st.cn.cn.newError(); err != nil {
-			return err
+			code := err.(*sqlaError).code
+			// check if the result set has really been exhausted
+			if code != 100 {
+				return
+			}
 		}
 		return io.EOF
-	}
-	if err = rs.st.cn.cn.newError(); err != nil {
-		return
 	}
 	if numcols := rs.st.st.numCols(); numcols > 0 {
 		data := &dataValue{}
