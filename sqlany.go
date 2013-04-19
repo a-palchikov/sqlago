@@ -351,6 +351,9 @@ func (rs *rows) Columns() []string {
 
 func (rs *rows) Next(dest []driver.Value) (err error) {
 	if ok := rs.st.st.fetchNext(); !ok {
+		if err = rs.st.cn.cn.newError(); err != nil {
+			return err
+		}
 		return io.EOF
 	}
 	if err = rs.st.cn.cn.newError(); err != nil {
