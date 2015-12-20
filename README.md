@@ -1,4 +1,4 @@
-# sqlago - pure Go driver for Sybase SQL Anywhere
+# sqlago - Go driver for Sybase SQL Anywhere
 
 sqlago driver is a wrapper over SQL Anywhere C API
 
@@ -79,7 +79,6 @@ in case it differs.
 Invoke the bootstrap batch to create an empty database, followed by `go test`.
 
 
-## Tested on
-
-Windows 7 Pro 64bit
+## Caveats:
+ - The implementation assumes Windows and has been only tested on Windows 7 Pro 64bit
 
