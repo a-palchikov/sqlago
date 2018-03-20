@@ -16,11 +16,20 @@ import (
 
 var (
 	ErrNotSupported = errors.New("sqla: not supported")
+	initialized     = false
 )
 
 func init() {
 	sql.Register("sqlany", &drv{})
-	sqlaInit("sqlago")
+	// sqlaInit("sqlago")
+}
+
+func Initialize(name string) {
+	if initialized {
+		return
+	}
+	sqlaInit(name)
+	initialized = true
 }
 
 // database driver
